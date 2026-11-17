@@ -1,0 +1,9 @@
+{
+  "bloco": 8,
+  "tol_i": 56,
+  "tol_s": 30,
+  "tol_d": 10,
+  "semente_altura": 8,
+  "semente_larg_pct": 20,
+  "fecho": 1
+}

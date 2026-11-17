@@ -1,0 +1,23 @@
+{
+  "homo_d0": 20.0,
+  "homo_gl": 0.5,
+  "homo_gh": 1.4,
+  "bilat_d": 7,
+  "bilat_sc": 30.0,
+  "bilat_ss": 7.0,
+  "clahe_clip": 2.0,
+  "trinca_bh_k": 11,
+  "trinca_k_std": 1.5,
+  "trinca_area_min": 30,
+  "trinca_alongamento_min": 3.0,
+  "trinca_comprimento_min": 40,
+  "buraco_tex_k": 15,
+  "buraco_abertura": 15,
+  "buraco_bh_k": 61,
+  "buraco_k_std": 1.5,
+  "buraco_area_min": 300,
+  "buraco_solidez_min": 0.75,
+  "buraco_alongamento_max": 3.0,
+  "buraco_textura_min": 0.0,
+  "saturacao_max": 90
+}

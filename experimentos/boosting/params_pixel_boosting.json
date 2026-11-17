@@ -1,0 +1,16 @@
+{
+  "a16": 16,
+  "b16": 16,
+  "fecho": 3,
+  "area_min": 15,
+  "comp_min": 10,
+  "larg_max16": 64,
+  "margem": 1,
+  "buraco_fecho": 5,
+  "buraco_area_min": 40,
+  "buraco_modo": 2,
+  "buraco_desloc": 600,
+  "trinca_desloc": -100000,
+  "sev_media": 298,
+  "sev_alta": 984
+}

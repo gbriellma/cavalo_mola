@@ -1,0 +1,50 @@
+{
+ "tipo": "bayes",
+ "descritores": [
+  "frac_cand_buraco"
+ ],
+ "mu": [
+  11
+ ],
+ "sd": [
+  88
+ ],
+ "m": {
+  "normal": [
+   -2
+  ],
+  "buraco": [
+   86
+  ],
+  "trinca": [
+   -2
+  ]
+ },
+ "Ci": {
+  "normal": [
+   [
+    2
+   ]
+  ],
+  "buraco": [
+   [
+    0
+   ]
+  ],
+  "trinca": [
+   [
+    2
+   ]
+  ]
+ },
+ "ld": {
+  "normal": 16117,
+  "buraco": 21294,
+  "trinca": 16117
+ },
+ "vies": {
+  "normal": 0,
+  "trinca": -1099511627776,
+  "buraco": 5077
+ }
+}

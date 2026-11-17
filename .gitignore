@@ -1,0 +1,41 @@
+# Local data and third-party teaching materials
+/dataset/
+/materiais_PI_2026.2/
+/docs/texto_aulas/
+/outputs/
+**/outputs/
+/para_o_cartao_sd/
+*.pkl
+*.npz
+*.log
+
+# Python and tools
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.pio/
+.vscode/
+.idea/
+*.lnk
+*.exe
+*.dll
+*.o
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
+id_rsa*
+id_ed25519*
+.aws/
+.ssh/
+.DS_Store
+Thumbs.db

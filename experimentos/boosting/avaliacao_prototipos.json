@@ -1,0 +1,50 @@
+{
+  "k_prototipos": {
+    "normal": 16,
+    "trinca": 8,
+    "buraco": 4
+  },
+  "pesos": {
+    "normal": 100,
+    "trinca": 120,
+    "buraco": 140
+  },
+  "validacao": {
+    "trinca": {
+      "precisao": 0.6111,
+      "revocacao": 0.5894,
+      "f1": 0.6001
+    },
+    "buraco": {
+      "precisao": 0.1388,
+      "revocacao": 0.1475,
+      "f1": 0.143
+    },
+    "dano": {
+      "precisao": 0.614,
+      "revocacao": 0.5962,
+      "f1": 0.605
+    }
+  },
+  "teste": {
+    "trinca": {
+      "precisao": 0.6169,
+      "revocacao": 0.5733,
+      "f1": 0.5943
+    },
+    "buraco": {
+      "precisao": 0.1331,
+      "revocacao": 0.1563,
+      "f1": 0.1438
+    },
+    "dano": {
+      "precisao": 0.6126,
+      "revocacao": 0.5774,
+      "f1": 0.5945
+    }
+  },
+  "comparacao_boosting_teste": {
+    "trinca": 0.7629,
+    "buraco": 0.4316
+  }
+}
