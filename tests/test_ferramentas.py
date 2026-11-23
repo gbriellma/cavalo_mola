@@ -65,7 +65,6 @@ import ajustar
 import ajustar_pixel
 import avaliar_hibrido
 import calibrar_severidade
-import exportar_sd
 from _nota import nota
 from pavimento.dataset import particao
 
@@ -394,50 +393,6 @@ class FerramentasTest(unittest.TestCase):
         teste = next(f"img{i}" for i in range(100) if particao(f"img{i}") == "teste")
         with self.assertRaisesRegex(ValueError, "Vazamento recusado"):
             ajustar_pixel._init([self.raiz / teste])
-
-    def test_exportacao_sem_dataset_com_cache_vazio_ou_existente(self):
-        self.cache.mkdir()
-        destino = self.raiz / "sd"
-        nome = next(f"img{i}" for i in range(100) if particao(f"img{i}") == "teste")
-        for com_cache in (False, True):
-            if com_cache:
-                _comum.preparar(self.amostra(nome=nome))
-            with self.subTest(com_cache=com_cache), \
-                    patch.dict(os.environ, {"CAVALO_DATASET": str(self.raiz / "ausente")}), \
-                    patch.object(sys, "argv", ["exportar_sd.py", "--destino", str(destino)]), \
-                    patch.object(exportar_sd, "preparar") as preparar:
-                with self.assertRaisesRegex(FileNotFoundError, "CAVALO_DATASET"):
-                    exportar_sd.main()
-                preparar.assert_not_called()
-                self.assertFalse(destino.exists())
-            r = self.executar("exportar_sd.py", self.raiz / "ausente", cache=self.cache,
-                              argumentos=["--destino", str(destino)])
-            self.assertNotEqual(r.returncode, 0)
-            self.assertIn("CAVALO_DATASET", r.stderr)
-            self.assertNotIn("Traceback", r.stderr)
-            self.assertFalse(destino.exists())
-
-    def test_exportacao_preflight_e_env_atual(self):
-        nome = next(f"img{i}" for i in range(100) if particao(f"img{i}") == "teste")
-        pasta = self.amostra(nome=nome)
-        _comum.preparar(pasta)
-        with patch.dict(os.environ, {"CAVALO_DATASET": str(pasta.parent)}), \
-                patch.object(_caminho, "DATASET", str(self.raiz / "antigo")):
-            self.assertEqual(exportar_sd.amostras_dnit("teste"), [str(pasta)])
-            ausente = pasta / f"{nome}_LANE.png"
-            ausente.unlink()
-            destino = self.raiz / "sd"
-            with patch.object(sys, "argv", ["exportar_sd.py", "--destino", str(destino)]), \
-                    patch.object(exportar_sd, "preparar") as preparar:
-                with self.assertRaisesRegex(ValueError, ausente.name):
-                    exportar_sd.main()
-                preparar.assert_not_called()
-                self.assertFalse(destino.exists())
-        vazio = self.raiz / "vazio"
-        vazio.mkdir()
-        with patch.dict(os.environ, {"CAVALO_DATASET": str(vazio)}):
-            with self.assertRaisesRegex(ValueError, "Nenhuma amostra"):
-                exportar_sd.amostras_dnit("teste")
 
     def test_nota_monotonica(self):
         r = {"trinca_tol": (5, 5, 5, 5), "buraco_px": (2, 8, 2, 8),

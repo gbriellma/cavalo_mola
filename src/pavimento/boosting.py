@@ -4,7 +4,7 @@ Por que árvores com boosting:
   * classificam vetores de descritores heterogêneos (estatística, gradiente, textura, contexto)
     sem normalização;
   * inferência = comparações inteiras  x[f] <= limiar  + soma de folhas inteiras → determinística
-    e trivial de portar para C na ESP32 (sem float);
+    (sem float);
   * na literatura de pavimentos, árvores (CrackForest, LightGBM) estão entre os melhores
     classificadores sobre descritores manuais.
 Referências: Friedman (2001) "Greedy function approximation: a gradient boosting machine";

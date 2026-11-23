@@ -84,8 +84,3 @@ Autonomous Robots, 2021. DOI: 10.1007/s10514-020-09964-3. Dataset RTK (Road Trav
 Mendeley Data, DOI 10.17632/hssswvmjwf.1, CC BY 4.0: 701 imagens 352×288 de câmera de baixo custo
 (Santa Catarina), 13 classes (fundo, asfalto, calçamento, terra, faixas, ..., buraco, trinca).
 Usado para ajustar/avaliar a detecção automática da estrada.
-
-## Firmware
-
-- PlatformIO + Arduino-ESP32; SD_MMC em modo 1 bit (pinos fixos da ESP32-CAM AI-Thinker:
-  CLK=14, CMD=15, D0=2). Documentação: https://docs.espressif.com/projects/arduino-esp32/

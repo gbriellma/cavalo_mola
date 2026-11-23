@@ -6,8 +6,8 @@ Grupo 9: Guilherme Henrique, Caio Santos Bispo e Gabriel Lima.
 **Diferencial:** quantificação, alta velocidade e determinismo.
 
 - **Quantificação.** Para cada imagem o sistema mede o comprimento e a largura média das trincas e as classifica em longitudinal, transversal, diagonal ou couro de jacaré. Também mede a área dos buracos em porcentagem da pista e calcula um índice de dano de 0 a 100 com severidade.
-- **Velocidade.** Cerca de 14 ms por imagem com o núcleo em C no PC, e cerca de 40 ms com NumPy.
-- **Determinismo.** Só aritmética inteira: sem float, sem FFT, sem aleatoriedade. O mesmo algoritmo roda em Python e em C, o C também roda na **ESP32-CAM**, e os resultados são **idênticos bit a bit** (`scripts/comparar_esp32.py`).
+- **Velocidade.** Cerca de 40 ms por imagem com NumPy.
+- **Determinismo.** Só aritmética inteira: sem float, sem FFT, sem aleatoriedade.
 
 Cada técnica é referenciada ao material do professor em [`docs/REFERENCIAS.md`](docs/REFERENCIAS.md).
 
@@ -29,7 +29,7 @@ que não está presente na pasta original disponibilizada.
 cavalo_mola/
 ├── src/pavimento/
 │   ├── nucleo.py          núcleo determinístico (pipeline completo, só inteiros)
-│   ├── parametros.py      parâmetros inteiros (fonte única → params.json → params.h)
+│   ├── parametros.py      parâmetros inteiros (fonte única → params.json)
 │   ├── metricas.py        precisão, revocação, F1, IoU
 │   ├── dataset.py         leitura do dataset e divisão treino/teste (hash do nome)
 │   └── visualizacao.py    painéis e sobreposições (só para relatório)
@@ -37,14 +37,7 @@ cavalo_mola/
 │   ├── ajustar.py               ajuste determinístico dos parâmetros (treino)
 │   ├── calibrar_severidade.py   limiares de severidade a partir dos rótulos (treino)
 │   ├── avaliar.py               métricas no conjunto de teste
-│   ├── processar_imagem.py      painel com etapas intermediárias de uma imagem
-│   ├── gerar_params_h.py        params.json → esp32cam/include/params.h
-│   ├── exportar_sd.py           prepara as imagens para o cartão SD
-│   └── comparar_esp32.py        verificação bit a bit Python × C (ESP32 ou PC)
-├── esp32cam/                    projeto PlatformIO (ESP32-CAM, lê do microSD)
-│   ├── lib/nucleo/nucleo.c      porta em C do nucleo.py
-│   ├── src/main.cpp             firmware
-│   └── test_pc/teste_pc.c       roda o mesmo nucleo.c no PC
+│   └── processar_imagem.py      painel com etapas intermediárias de uma imagem
 ├── params.json                  parâmetros ajustados
 ├── outputs/                     avaliações, CSVs e painéis de exemplo
 ├── docs/REFERENCIAS.md          técnica → arquivo/slide do professor
@@ -130,38 +123,6 @@ O treino mostra o mesmo padrão (buracos pixel F1 0,092 → 0,124; trincas tol 2
 **Análise crítica.** Trincas melhoraram em tudo. Buracos melhoraram, mas continuam o ponto fraco, e o pixel é limitado pelos dados: os buracos ocupam só 0,69% dos pixels da pista, os rótulos são grosseiros, e limiarizar a melhor característica de textura sozinha dá F1 de no máximo ~0,07. A detecção por imagem (F1 0,38) é mais confiável que a máscara. Um classificador sobre descritores de região é o próximo passo (testado em `experimentos/legado_float`).
 
 **Cuidados.** Os testes de geometria de trincas passaram a usar os parâmetros padrão, porque o `params.json` calibrado para imagens reais não é feito para linhas sintéticas ideais; um teste novo cobre o `params.json` real. Os tempos foram medidos com 12 processos em paralelo e só valem para comparação entre si.
-
-## ESP32-CAM (embarcado, sem câmera)
-
-**Aviso:** `esp32cam/` **não foi atualizado** nesta rodada (foco no PC). O `nucleo.py` mudou (modo textura, histerese, parâmetros novos), então a verificação bit a bit com o `nucleo.c` está desatualizada. O porte para a ESP32 fica como próxima etapa; o modo `buraco_modo=1` usa só operações que o `nucleo.c` já tem.
-
-O firmware lê as imagens do **microSD** e grava os resultados de volta no cartão.
-
-1. Preparar o cartão (FAT32). A pasta `para_o_cartao_sd/pav` já vem pronta, com 40 imagens de teste: copie a pasta `pav` para a raiz do cartão, ficando `E:\pav\entrada\...`. Para gerar outras amostras, com o cartão no PC (troque `E:` pela letra dele):
-   ```bash
-   python scripts/exportar_sd.py --destino E:/pav/entrada --n 40
-   ```
-2. Gravar o firmware. Pelo VS Code: PlatformIO → *Upload*. Pelo terminal:
-   ```bash
-   cd esp32cam
-   pio run -t upload
-   pio device monitor
-   ```
-   Na ESP32-CAM AI-Thinker, ligue GPIO0 ao GND para gravar, depois desligue e pressione RESET.
-3. Colocar o cartão na ESP32-CAM e resetar. O monitor serial mostra tempo e quantificação por imagem. Os resultados ficam em `/pav/saida/resultados.csv`, e as máscaras em `/pav/saida/<nome>_res.pgm`.
-4. Copiar `E:\pav\saida` para `para_o_cartao_sd\pav\saida`, depois verificar a igualdade com o Python e gerar as imagens:
-   ```bash
-   python scripts/comparar_esp32.py --entrada para_o_cartao_sd/pav/entrada --csv para_o_cartao_sd/pav/saida/resultados.csv
-   python scripts/visualizar_esp32.py      # -> outputs/esp32_visual/index.html
-   ```
-   O `resultados.csv` traz o tempo total e o tempo de cada etapa (estatísticas, buracos, trincas, esqueleto, medidas).
-   O `resumo.txt` traz as médias por etapa.
-
-**Primeira execução na placa (firmware v1):** as 40 máscaras foram idênticas pixel a pixel ao Python, e levou ~3,1 s por imagem. A v2 otimiza a morfologia (contagem deslizante, O(1) por pixel), o esqueleto (visita só os pixels acesos) e as divisões, mantendo o resultado idêntico (200/200 no teste bit a bit).
-
-Se você alterar `params.json`, rode `python scripts/gerar_params_h.py` antes de gravar.
-
-Memória: são ~2,6 MB de trabalho, na PSRAM de 4 MB. O SD é usado em modo 1 bit, então o LED flash (GPIO4) não acende.
 
 ## Referências
 

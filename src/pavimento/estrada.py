@@ -9,7 +9,7 @@ Referências (material do Prof. Lucas Cambuim):
          conversão RGB->HSI sl.70-71 (I = (R+G+B)/3, S = 1 - 3·min(R,G,B)/(R+G+B))
   [7_1S] "7_1 - segmentacao.pdf" sl.19-24: textura pelo desvio padrão em sub-regiões
   [6_1]  fechamento sl.40-42, preenchimento de buracos sl.61-66
-Para velocidade (e para a ESP32), o crescimento é feito sobre BLOCOS b×b (sub-regiões,
+Para velocidade, o crescimento é feito sobre BLOCOS b×b (sub-regiões,
 como no slide 7_1S sl.23), cada bloco descrito por média de I, média de S e desvio de I.
 """
 from __future__ import annotations

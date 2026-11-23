@@ -73,13 +73,6 @@ class Parametros:
         nomes = {f.name for f in fields(cls)}
         return cls(**{k: int(v) for k, v in d.items() if k in nomes})
 
-    def cabecalho_c(self) -> str:
-        """Gera o params.h do firmware a partir destes valores (fonte única de verdade)."""
-        linhas = ["// Gerado por scripts/gerar_params_h.py — NÃO EDITAR À MÃO", "#pragma once", ""]
-        for k, v in asdict(self).items():
-            linhas.append(f"#define P_{k.upper()} {int(v)}")
-        return "\n".join(linhas) + "\n"
-
 
 # Valores candidatos inteiros para ajuste SOMENTE no treino (T4).
 GRADE_BUSCA = {
