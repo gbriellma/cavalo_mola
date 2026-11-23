@@ -1,12 +1,12 @@
 {
-  "raio": 4,
-  "trinca_a16": 32,
-  "trinca_b16": 150,
+  "raio": 10,
+  "trinca_a16": 36,
+  "trinca_b16": 176,
   "trinca_fraca_a16": 16,
   "trinca_fraca_b16": 32,
   "trinca_abertura_linha": 3,
   "trinca_fecho": 3,
-  "trinca_area_min": 19,
+  "trinca_area_min": 10,
   "trinca_comp_min": 4,
   "trinca_larg_max16": 64,
   "trinca_along_min16": 12,
@@ -27,9 +27,9 @@
   "buraco_aspecto_max_1000": 4000,
   "buraco_fracao_escura_min_1000": 0,
   "buraco_borda_margem": 0,
-  "dano_peso_trinca": 60,
+  "dano_peso_trinca": 40,
   "dano_peso_buraco": 10,
-  "sev_min_1000": 0,
-  "sev_media_1000": 109,
-  "sev_alta_1000": 535
+  "sev_min_1000": 1,
+  "sev_media_1000": 217,
+  "sev_alta_1000": 656
 }

@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detecção de Danos em Pavimentos — PI 2026.2 · UFRPE</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- Barra superior única e fina (Paleta Asfalto & Sinalização) -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-badge">PI 2026.2 · UFRPE</span>
+        <h1>Detecção de Danos em Pavimentos</h1>
+      </div>
+
+      <nav class="mode-tabs" aria-label="Modos de visualização">
+        <button class="mode-tab active" data-view="etapas">Analisador</button>
+        <button class="mode-tab" data-view="mosaico">Etapas (Mosaico)</button>
+        <button class="mode-tab" data-view="resultados">Requisitos &amp; Resultados</button>
+      </nav>
+
+      <div class="topbar-actions">
+        <div class="perf-pill" id="perfPill" title="Tempo real do núcleo determinístico em Python/NumPy (somente inteiros)">
+          <span class="dot"></span>
+          <span id="perfText">Núcleo: — ms</span>
+        </div>
+        <button class="btn btn-ghost-dark" id="btnApresentacao" title="Alternar modo apresentação (atalho: F)">
+          Apresentação
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <main class="main-container">
+    <!-- ==================== VIEW 1: ANALISADOR ==================== -->
+    <section id="viewEtapas" class="view-section active">
+      <!-- Control Bar compacta -->
+      <section class="control-bar" id="controlBar">
+        <div class="control-group control-scenario">
+          <label for="selectCenario">Entrada</label>
+          <div class="inline-row">
+            <select id="selectCenario"></select>
+            <button class="btn btn-primary btn-sm hidden" id="btnExplorarDnit" title="Buscar entre todas as amostras reais do dataset DNIT">
+              Explorar DNIT
+            </button>
+            <button class="btn btn-outline btn-sm hidden" id="btnAleatoriaDnit" title="Sortear uma amostra real da partição de teste do DNIT">
+              Aleatória (Teste)
+            </button>
+            <button class="btn btn-outline btn-sm" id="btnUploadFoto" title="Carregar foto de pavimento (.jpg, .png)">
+              Enviar Foto
+            </button>
+            <button class="btn btn-outline btn-sm hidden" id="btnUploadRoi" title="Carregar máscara de pista opcional (*_LANE.png)">
+              + Máscara ROI
+            </button>
+            <input type="file" id="inputFoto" accept="image/*" class="hidden">
+            <input type="file" id="inputRoi" accept="image/*" class="hidden">
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label>ROI</label>
+          <div class="segmented" id="roiModeGroup">
+            <button class="seg-btn active" data-roi="cenario">Pista (ROI)</button>
+            <button class="seg-btn" data-roi="inteira">Imagem Inteira</button>
+            <button class="seg-btn" data-roi="poligono">Editar ROI</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label>Escala</label>
+          <label class="toggle-chip" title="Aplica reduzir_2x() por média de blocos 2×2">
+            <input type="checkbox" id="chkReduzir2x">
+            <span id="lblResolucao">Redução 2×</span>
+          </label>
+        </div>
+
+        <div class="control-group control-exports">
+          <label>Exportar</label>
+          <div class="inline-row">
+            <button class="btn btn-outline btn-sm" id="btnExportarPng" title="Baixar painel oficial em PNG">
+              Painel PNG
+            </button>
+            <button class="btn btn-outline btn-sm" id="btnExportarJson" title="Baixar relatório quantitativo em JSON">
+              JSON
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div class="workspace-grid">
+        <!-- Coluna esquerda: Stepper + Stage Card + Painel Contextual -->
+        <div class="stage-column">
+          <!-- Stepper enxuto em 1 linha (Etapa 5 ativa inicialmente) -->
+          <nav class="stepper-bar" id="stepperBar" aria-label="Etapas do pipeline">
+            <button class="step-pill" data-step="1">
+              <span class="step-num">01</span>
+              <span class="step-txt"><strong>Pré-proc.</strong><small>HSI · 2× · ROI</small></span>
+            </button>
+            <span class="step-sep">→</span>
+            <button class="step-pill" data-step="2">
+              <span class="step-num">02</span>
+              <span class="step-txt"><strong>Filtragem</strong><small>Média · Textura</small></span>
+            </button>
+            <span class="step-sep">→</span>
+            <button class="step-pill" data-step="3a">
+              <span class="step-num">3A</span>
+              <span class="step-txt"><strong>Trincas</strong><small>Limiar Variável</small></span>
+            </button>
+            <span class="step-sep">‖</span>
+            <button class="step-pill accent-amber" data-step="3b">
+              <span class="step-num">3B</span>
+              <span class="step-txt"><strong>Buracos</strong><small>Mediana + MAD</small></span>
+            </button>
+            <span class="step-sep">→</span>
+            <button class="step-pill accent-amber" data-step="4">
+              <span class="step-num">04</span>
+              <span class="step-txt"><strong>Morfologia</strong><small>Abert. · Fecho</small></span>
+            </button>
+            <span class="step-sep">→</span>
+            <button class="step-pill active" data-step="5">
+              <span class="step-num">05</span>
+              <span class="step-txt"><strong>Resultado</strong><small>Esqueleto · Nota</small></span>
+            </button>
+          </nav>
+
+          <!-- Visualizador principal da etapa -->
+          <div class="card stage-card">
+            <div class="stage-card-head">
+              <div>
+                <div class="stage-eyebrow" id="stageEyebrow">ETAPA 05 · RESULTADO E QUANTIFICAÇÃO</div>
+                <h2 class="stage-title" id="stageTitle">Esqueletização Zhang-Suen, Filtros de Forma e Índice</h2>
+              </div>
+              <div class="stage-nav-btns">
+                <button class="btn btn-outline btn-sm" id="btnPrevStep" title="Etapa anterior (←)">← Anterior</button>
+                <button class="btn btn-primary btn-sm" id="btnNextStep" title="Próxima etapa (→)">Próxima →</button>
+              </div>
+            </div>
+
+            <div class="substage-toolbar">
+              <div class="substage-pills" id="substagePills"></div>
+              <div class="viewer-tools">
+                <div class="segmented segmented-sm" id="compareModeGroup">
+                  <button class="seg-btn active" data-cmp="cortina" title="Comparar Antes × Depois arrastando a divisória">Antes × Depois</button>
+                  <button class="seg-btn" data-cmp="unico" title="Exibir somente a sub-etapa selecionada">Única</button>
+                  <button class="seg-btn" data-cmp="lado" title="Exibir Entrada e Saída lado a lado">Lado a Lado</button>
+                </div>
+                <button class="btn btn-outline btn-xs" id="btnZoomOut" title="Diminuir zoom">−</button>
+                <span class="zoom-label" id="lblZoom">100%</span>
+                <button class="btn btn-outline btn-xs" id="btnZoomIn" title="Aumentar zoom">+</button>
+                <button class="btn btn-outline btn-xs" id="btnZoomFit" title="Ajustar à tela">Ajustar</button>
+                <button class="btn btn-outline btn-xs" id="btnLoupe" title="Ativar lupa 6× sob o cursor">Lupa 6×</button>
+                <button class="btn btn-outline btn-xs" id="btnToggleInspector" title="Mostrar ou ocultar o inspetor de pixel" aria-expanded="false">Pixel</button>
+              </div>
+            </div>
+
+            <!-- Canvas interativo -->
+            <div class="canvas-viewport" id="canvasViewport">
+              <div class="canvas-stage" id="canvasStage">
+                <canvas id="mainCanvas"></canvas>
+                <div class="curtain-handle hidden" id="curtainHandle" title="Arraste para comparar Antes × Depois">
+                  <div class="curtain-line"></div>
+                  <div class="curtain-knob">⇄</div>
+                </div>
+                <div class="cmp-badge cmp-badge-left hidden" id="cmpBadgeLeft">Antes</div>
+                <div class="cmp-badge cmp-badge-right hidden" id="cmpBadgeRight">Depois</div>
+                <canvas id="loupeCanvas" class="loupe-canvas hidden" width="132" height="132"></canvas>
+              </div>
+
+              <div class="roi-edit-banner hidden" id="roiEditBanner">
+                <span>Arraste os pontos âmbar para ajustar o contorno da pista (ROI).</span>
+                <div class="inline-row">
+                  <button class="btn btn-primary btn-xs" id="btnAplicarRoi">Aplicar ROI</button>
+                  <button class="btn btn-outline btn-xs" id="btnResetRoi">Resetar ROI</button>
+                </div>
+              </div>
+
+              <div class="loading-overlay hidden" id="loadingOverlay">
+                <div class="spinner"></div>
+                <span>Executando núcleo inteiro…</span>
+              </div>
+            </div>
+
+            <div class="legend-strip" id="legendStrip"></div>
+
+            <!-- Inspetor de pixel (oculto por padrão, alternado por #btnToggleInspector) -->
+            <div class="pixel-inspector hidden" id="pixelInspector">
+              <div class="pi-header">
+                <div class="inline-row">
+                  <span class="pi-title">Inspetor de Pixel (aritmética inteira exata)</span>
+                  <span class="pi-hint" id="piHint">Passe o mouse sobre a imagem · Clique para fixar um pixel</span>
+                </div>
+              </div>
+              <div class="pi-grid" id="piGrid">
+                <div class="pi-cell">
+                  <span class="pi-lbl">Coord. (x, y)</span>
+                  <span class="pi-sub-lbl">Posição na imagem</span>
+                  <strong id="piCoord">—</strong>
+                </div>
+                <div class="pi-cell">
+                  <span class="pi-lbl">Intensidade I</span>
+                  <span class="pi-sub-lbl">Brilho 0–255</span>
+                  <strong id="piG">—</strong>
+                </div>
+                <div class="pi-cell">
+                  <span class="pi-lbl">Média m_xy</span>
+                  <span class="pi-sub-lbl">Média da vizinhança</span>
+                  <strong id="piM">—</strong>
+                </div>
+                <div class="pi-cell">
+                  <span class="pi-lbl">Desvio s_xy / s_b</span>
+                  <span class="pi-sub-lbl">Aspereza local</span>
+                  <strong id="piS">—</strong>
+                </div>
+                <div class="pi-cell pi-wide">
+                  <span class="pi-lbl">Teste Trinca: m − I vs a·s + b</span>
+                  <span class="pi-sub-lbl">Escurecimento contra vizinhos</span>
+                  <strong id="piTrincaTest">—</strong>
+                </div>
+                <div class="pi-cell pi-wide">
+                  <span class="pi-lbl">Teste Buraco: s_b &gt; t_tex</span>
+                  <span class="pi-sub-lbl">Aspereza acima do limite</span>
+                  <strong id="piBuracoTest">—</strong>
+                </div>
+                <div class="pi-cell pi-wide">
+                  <span class="pi-lbl">Estado no Pixel</span>
+                  <span class="pi-sub-lbl">Decisão final aqui</span>
+                  <strong id="piEstado">—</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Painel contextual (visível apenas nas Etapas 3B, 4 e 5) -->
+          <div class="card contextual-card hidden" id="contextualCard"></div>
+        </div>
+
+        <!-- Coluna direita: Diagnóstico da Via + Painel Lateral (Etapa / Parâmetros) -->
+        <aside class="side-column">
+          <div class="card summary-mini" id="summaryMini">
+            <div class="sm-head">
+              <span>Diagnóstico da Via</span>
+              <span class="sev-badge" id="smSevBadge">—</span>
+            </div>
+            <div class="gauge-wrap">
+              <div class="gauge-bar">
+                <div class="gauge-marker" id="smGaugeMarker" style="left:0%"></div>
+              </div>
+              <div class="gauge-labels">
+                <span>0</span>
+                <span>22</span>
+                <span>66</span>
+                <span>100</span>
+              </div>
+            </div>
+            <div class="sm-kpis">
+              <div class="sm-kpi">
+                <span class="sm-val" id="smIndice">—</span>
+                <span class="sm-lbl">Índice / 100</span>
+              </div>
+              <div class="sm-kpi">
+                <span class="sm-val" id="smTrincas">—</span>
+                <span class="sm-lbl">Trincas</span>
+              </div>
+              <div class="sm-kpi">
+                <span class="sm-val" id="smBuracos">—</span>
+                <span class="sm-lbl">Buracos (% pista)</span>
+              </div>
+            </div>
+            <div class="gt-live-strip hidden" id="gtLiveStrip"></div>
+          </div>
+
+          <div class="card side-card">
+            <div class="side-tabs">
+              <button class="side-tab active" data-sidetab="explicacao">Etapa</button>
+              <button class="side-tab" data-sidetab="parametros">Parâmetros</button>
+            </div>
+
+            <div class="side-pane active" id="paneExplicacao">
+              <div id="explicacaoConteudo"></div>
+            </div>
+
+            <div class="side-pane" id="paneParametros">
+              <div class="preset-bar">
+                <span class="preset-label">Presets:</span>
+                <button class="btn btn-primary btn-xs" id="btnPresetFinal" title="Carrega params.json (calibrado no treino)">Otimizado (Atual)</button>
+                <button class="btn btn-outline btn-xs" id="btnPresetSlides" title="Carrega a calibração anterior (r=4) dos slides">Slides (r=4)</button>
+                <button class="btn btn-outline btn-xs" id="btnPresetPadrao" title="Carrega Parametros() padrão do código">Padrão Código</button>
+              </div>
+              <p class="param-note">
+                Todos os parâmetros são <strong>inteiros</strong> (ponto fixo ×16, ×4 ou ×1000).
+                Alterar qualquer controle reexecuta o núcleo real em ~45 ms.
+              </p>
+              <div id="parametrosConteudo"></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 2: ETAPAS (MOSAICO) ==================== -->
+    <section id="viewMosaico" class="view-section">
+      <div class="card mosaic-header-card">
+        <div>
+          <div class="stage-eyebrow">VISÃO PANORÂMICA DO PIPELINE</div>
+          <h2>Todas as Etapas Lado a Lado</h2>
+          <p class="muted">Clique em qualquer quadro para abrir a etapa correspondente no analisador.</p>
+        </div>
+        <div class="inline-row">
+          <button class="btn btn-primary btn-sm" id="btnMosaicoExportar">Baixar Painel Oficial (PNG)</button>
+        </div>
+      </div>
+      <div class="mosaic-grid" id="mosaicGrid"></div>
+    </section>
+
+    <!-- ==================== VIEW 3: REQUISITOS & RESULTADOS ==================== -->
+    <section id="viewResultados" class="view-section">
+      <div class="results-layout">
+        <div class="card">
+          <div class="stage-eyebrow">ALINHAMENTO COM A DISCIPLINA</div>
+          <h2>Atendimento aos Requisitos (Descricao de projeto.pdf)</h2>
+          <div class="table-wrap">
+            <table class="req-table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Tópico</th>
+                  <th>Como foi implementado</th>
+                  <th>Módulos</th>
+                  <th>Status</th>
+                  <th>Ao vivo</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaRequisitos"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="stage-eyebrow">AVALIAÇÃO SEM VAZAMENTO DE DADOS</div>
+          <h2>Resultados Quantitativos (666 Imagens Inéditas de Teste)</h2>
+          <p class="muted">
+            Base brasileira <strong>Cracks and Potholes (DNIT)</strong>: 1.451 imagens divididas deterministicamente por hash
+            em <strong>785 de treino/calibração</strong> e <strong>666 de teste inédito</strong> (avaliadas uma única vez).
+          </p>
+
+          <div class="kpi-row">
+            <div class="kpi-box kpi-teal">
+              <div class="kpi-num">0,928</div>
+              <div class="kpi-name">F1 Trincas</div>
+              <div class="kpi-sub">Revocação de 100,0% (0 falsos negativos)</div>
+            </div>
+            <div class="kpi-box kpi-teal">
+              <div class="kpi-num">0,531</div>
+              <div class="kpi-name">F1 Tol. 2 px</div>
+              <div class="kpi-sub">+66% sobre a versão inicial (0,321 → 0,531)</div>
+            </div>
+            <div class="kpi-box kpi-amber">
+              <div class="kpi-num">57,4%</div>
+              <div class="kpi-name">Severidade Exata</div>
+              <div class="kpi-sub">93,2% até 1 nível (acaso = 25% em 4 classes)</div>
+            </div>
+            <div class="kpi-box kpi-dark">
+              <div class="kpi-num">~45 ms</div>
+              <div class="kpi-name">Tempo em CPU</div>
+              <div class="kpi-sub">100% inteiro · NumPy do zero · zero GPU</div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Métrica (Teste — 666 imagens)</th>
+                  <th>Inicial</th>
+                  <th>Calibração (r=4)</th>
+                  <th>Final (r=10)</th>
+                  <th>Observação</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaMetricasOficiais"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="stage-eyebrow">DISCUSSÃO CRÍTICA</div>
+          <h2>Análise Crítica dos Resultados (Item 11.5)</h2>
+          <div class="crit-grid" id="analiseCriticaGrid"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Explorador do Dataset DNIT -->
+  <div class="modal-backdrop hidden" id="modalDnit">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <div class="stage-eyebrow">DATASET REAL · CRACKS AND POTHOLES (DNIT)</div>
+          <h3 id="modalDnitTitulo">Explorar Amostras Reais</h3>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btnFecharModalDnit">Fechar ✕</button>
+      </div>
+      <div class="modal-filters">
+        <input type="text" id="dnitBusca" placeholder="Buscar por rodovia ou nome (ex.: DF_251, RS_386, 992851)..." autocomplete="off">
+        <select id="dnitFiltroParticao">
+          <option value="todas">Todas as partições</option>
+          <option value="teste" selected>Somente Teste (inéditas)</option>
+          <option value="treino">Somente Treino</option>
+        </select>
+        <select id="dnitFiltroEstado">
+          <option value="todos">Todos os estados</option>
+        </select>
+      </div>
+      <div class="modal-status" id="dnitStatus">Carregando...</div>
+      <div class="dnit-list" id="dnitList"></div>
+      <div class="modal-foot">
+        <button class="btn btn-outline btn-sm" id="btnDnitPrev">← Anteriores</button>
+        <span class="muted" id="dnitPagInfo"></span>
+        <button class="btn btn-outline btn-sm" id="btnDnitNext">Próximas →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay de arrastar e soltar foto -->
+  <div class="drop-overlay hidden" id="dropOverlay">
+    <div class="drop-box">
+      <div class="drop-icon">📷</div>
+      <h3>Solte a imagem de asfalto aqui</h3>
+      <p>JPG, PNG ou BMP — será processada imediatamente pelo núcleo clássico.</p>
+    </div>
+  </div>
+
+  <!-- Toast de notificações -->
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="/static/didatica.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
