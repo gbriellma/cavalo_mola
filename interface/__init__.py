@@ -1,1 +1,1 @@
-"""Interface gráfica web em Python para visualização didática do pipeline clássico."""
+"""Pacote da interface gráfica desktop em Python (PyQt5) do projeto."""

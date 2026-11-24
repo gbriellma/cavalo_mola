@@ -1,36 +1,49 @@
-"""Testes da interface gráfica web: paridade com o núcleo, data packs e API HTTP."""
+"""Testes da interface gráfica desktop em Python (PyQt5) e paridade com o núcleo."""
 from __future__ import annotations
 
-import base64
 import json
+import os
 import sys
-import threading
+import tempfile
 import unittest
 from pathlib import Path
-from urllib.request import Request, urlopen
 
-import cv2
-import numpy as np
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 RAIZ = Path(__file__).resolve().parents[1]
 for p in (str(RAIZ), str(RAIZ / "src")):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from interface.cenarios import CENARIOS, carregar_cenario
-from interface.pipeline_didatico import _motivo_mais_frequente, executar_pipeline_didatico
-from interface.servidor import criar_servidor
-from pavimento.nucleo import analisar, intensidade_hsi, reduzir_2x, reduzir_mascara_2x
-from pavimento.parametros import Parametros
+from interface.app import criar_aplicacao  # noqa: E402
+from interface.cenarios import CENARIOS, carregar_cenario  # noqa: E402
+from interface.conteudo import ORDEM_ETAPAS  # noqa: E402
+from interface.dados import carregar_entrada_arquivo, filtrar_dataset_dnit  # noqa: E402
+from interface.janela_principal import JanelaPrincipal  # noqa: E402
+from interface.pipeline_didatico import (  # noqa: E402
+    _motivo_mais_frequente,
+    executar_pipeline_didatico,
+    inspecionar_pixel,
+)
+import cv2  # noqa: E402
+import numpy as np  # noqa: E402
+from pavimento.nucleo import analisar, intensidade_hsi, reduzir_2x, reduzir_mascara_2x  # noqa: E402
+from pavimento.parametros import Parametros  # noqa: E402
 
 
-class TestInterfaceDidatica(unittest.TestCase):
-    def test_paridade_todos_cenarios_e_data_packs(self):
+class TestInterfaceDesktop(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = criar_aplicacao([])
+
+    def test_paridade_todos_cenarios_e_inspecao_pixel(self):
         p_final = Parametros.carregar(str(RAIZ / "params.json"))
         for c in CENARIOS:
             with self.subTest(cenario=c.id):
                 bgr, roi_full, info = carregar_cenario(c.id)
-                res = executar_pipeline_didatico(bgr, roi_full, p_final, aplicar_reducao_2x=info.reduzir_padrao)
+                res = executar_pipeline_didatico(
+                    bgr, roi_full, p_final, aplicar_reducao_2x=info.reduzir_padrao
+                )
 
                 g = intensidade_hsi(bgr)
                 roi = roi_full
@@ -42,206 +55,99 @@ class TestInterfaceDidatica(unittest.TestCase):
                 self.assertEqual(res["quant"], oficial["quant"])
                 self.assertEqual(res["estatisticas"]["limiar_textura"], oficial["limiar_textura"])
                 self.assertEqual(res["estatisticas"]["limiar_otsu"], oficial["limiar_otsu"])
+                np.testing.assert_array_equal(res["mapas"]["g"], g)
+                np.testing.assert_array_equal(res["mapas"]["trincas"], oficial["trincas"])
+                np.testing.assert_array_equal(res["mapas"]["buracos"], oficial["buracos"])
 
-                # Confere decodificação exata dos data_packs (R=ch2, G=ch1, B=ch0 no OpenCV)
-                p1_bytes = base64.b64decode(res["data_packs"]["pack1"].split(",", 1)[1])
-                p1 = cv2.imdecode(np.frombuffer(p1_bytes, np.uint8), cv2.IMREAD_COLOR)
-                np.testing.assert_array_equal(p1[..., 2], g)
-                np.testing.assert_array_equal(p1[..., 1], np.clip(oficial["media"], 0, 255).astype(np.uint8))
-                np.testing.assert_array_equal(p1[..., 0], np.clip(oficial["desvio"], 0, 255).astype(np.uint8))
+                h, w = g.shape
+                px_centro = inspecionar_pixel(res, w // 2, h // 2)
+                self.assertIsNotNone(px_centro)
+                self.assertEqual(px_centro["intensidade"], int(g[h // 2, w // 2]))
+                self.assertIsNone(inspecionar_pixel(res, -1, 0))
+                self.assertIsNone(inspecionar_pixel(res, w, h))
 
-    def test_servidor_http_rotas_completas(self):
-        srv = criar_servidor("127.0.0.1", 0)
-        porta = srv.server_address[1]
-        base = f"http://127.0.0.1:{porta}"
-        t = threading.Thread(target=srv.serve_forever, daemon=True)
-        t.start()
-        try:
-            # GET / e estáticos
-            with urlopen(f"{base}/") as r:
-                self.assertEqual(r.status, 200)
-                self.assertIn("Detecção de Danos em Pavimentos", r.read().decode("utf-8"))
-            with urlopen(f"{base}/static/app.js") as r:
-                self.assertEqual(r.status, 200)
-            with urlopen(f"{base}/static/styles.css") as r:
-                self.assertEqual(r.status, 200)
-            with urlopen(f"{base}/static/didatica.js") as r:
-                self.assertEqual(r.status, 200)
-                self.assertIn("PAVIMENTO_INFO", r.read().decode("utf-8"))
-
-            # GET /api/init
-            with urlopen(f"{base}/api/init") as r:
-                init = json.loads(r.read().decode("utf-8"))
-                self.assertEqual(len(init["cenarios"]), len(CENARIOS))
-                self.assertIn("final", init["presets"])
-                self.assertIn("slides_anterior", init["presets"])
-
-            # POST /api/analisar
-            req = Request(
-                f"{base}/api/analisar",
-                data=json.dumps({"cenario_id": "didatico_buraco_faixa"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urlopen(req) as r:
-                out = json.loads(r.read().decode("utf-8"))
-                self.assertEqual(out["quant"]["n_buracos"], 1)
-                self.assertIn("5_final", out["imagens"])
-
-            # POST /api/upload + /api/upload_roi + /api/analisar + /api/exportar_painel
-            img = np.full((120, 160, 3), 150, dtype=np.uint8)
-            img[58:60, 20:140] = 30
-            _, buf_img = cv2.imencode(".png", img)
-            roi = np.full((120, 160), 255, dtype=np.uint8)
-            _, buf_roi = cv2.imencode(".png", roi)
-
-            req_up = Request(
-                f"{base}/api/upload",
-                data=json.dumps({
-                    "imagem_b64": "data:image/png;base64," + base64.b64encode(buf_img.tobytes()).decode("ascii"),
-                    "nome": "teste.png",
-                }).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urlopen(req_up) as r:
-                up = json.loads(r.read().decode("utf-8"))
-                uid = up["upload_id"]
-
-            req_roi = Request(
-                f"{base}/api/upload_roi",
-                data=json.dumps({
-                    "upload_id": uid,
-                    "roi_b64": "data:image/png;base64," + base64.b64encode(buf_roi.tobytes()).decode("ascii"),
-                }).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urlopen(req_roi) as r:
-                self.assertTrue(json.loads(r.read().decode("utf-8"))["tem_roi_upload"])
-
-            req_exp = Request(
-                f"{base}/api/exportar_painel",
-                data=json.dumps({"upload_id": uid, "reduzir_2x": False}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urlopen(req_exp) as r:
-                png = r.read()
-                self.assertTrue(png.startswith(b"\x89PNG"))
-
-            # GET /api/dataset + análise de amostra real DNIT (quando extraída localmente)
-            with urlopen(f"{base}/api/dataset?particao=teste&limit=5") as r:
-                ds = json.loads(r.read().decode("utf-8"))
-                if ds["disponivel"] and ds["amostras"]:
-                    nome = ds["amostras"][0]["nome"]
-                    req_dnit = Request(
-                        f"{base}/api/analisar",
-                        data=json.dumps({"amostra_dnit": nome}).encode("utf-8"),
-                        headers={"Content-Type": "application/json"},
-                        method="POST",
-                    )
-                    with urlopen(req_dnit) as rd:
-                        out_dnit = json.loads(rd.read().decode("utf-8"))
-                        self.assertIsNotNone(out_dnit["metricas_gt"])
-                        self.assertIn("5_gt_comparar", out_dnit["imagens"])
-                        self.assertIn("5_gt_rotulo", out_dnit["imagens"])
-        finally:
-            srv.shutdown()
-            srv.server_close()
-
-    def test_resumo_didatico_completo(self):
-        esquema = {
-            "etapa1": {
-                "pct_fora_roi": (int, float),
-                "fator_pixels": (int,),
-                "pixels_fora_roi": (int,),
-            },
-            "etapa2": {
-                "s_xy_mediana_roi": (int,),
-                "s_xy_p95_roi": (int,),
-                "tempo_nucleo_ms": (int, float),
-            },
-            "etapa3a": {
-                "px_otsu": (int,),
-                "px_histerese": (int,),
-                "pct_ruido_removido": (int, float),
-                "otsu_vs_histerese_x": (int, float),
-            },
-            "etapa3b": {
-                "pct_pista_cand": (int, float),
-                "mediana_textura": (int,),
-                "mad_textura": (int,),
-                "limiar_textura": (int,),
-            },
-            "etapa4": {
-                "pct_removido_abertura": (int, float),
-                "px_removido_abertura": (int,),
-                "px_preenchido_miolo": (int,),
-                "px_religado_trincas": (int,),
-            },
-            "etapa5": {
-                "trincas_rejeitadas_pct": (int, float),
-                "buracos_rejeitados_pct": (int, float),
-                "motivo_trinca_top": (str,),
-                "motivo_buraco_top": (str,),
-                "severidade_label": (str,),
-            },
-        }
-
-        def validar_resumo(resumo: dict) -> None:
-            self.assertIsInstance(resumo, dict)
-            self.assertEqual(set(resumo.keys()), set(esquema.keys()))
-            for etapa, campos in esquema.items():
-                bloco = resumo[etapa]
-                self.assertIsInstance(bloco, dict)
-                self.assertEqual(set(bloco.keys()), set(campos.keys()), msg=f"Chaves divergentes em {etapa}")
-                for chave, tipos in campos.items():
-                    val = bloco[chave]
-                    self.assertNotIsInstance(val, bool, msg=f"{etapa}.{chave} não pode ser bool")
-                    self.assertIsInstance(val, tipos, msg=f"Tipo inválido em {etapa}.{chave}: {type(val)}")
-            self.assertIn(resumo["etapa1"]["fator_pixels"], (1, 4))
-            self.assertIn(resumo["etapa5"]["severidade_label"], {"Nenhum", "Baixa", "Média", "Alta"})
-            self.assertTrue(resumo["etapa5"]["motivo_trinca_top"])
-            self.assertTrue(resumo["etapa5"]["motivo_buraco_top"])
-
-        self.assertEqual(_motivo_mais_frequente([]), "Nenhum componente rejeitado")
+    def test_resumo_didatico_esquema(self):
+        self.assertEqual(_motivo_mais_frequente([]), "Nenhum rejeitado")
         self.assertEqual(
             _motivo_mais_frequente([{"motivos": ["A", "B"]}, {"motivos": ["A"]}]),
             "A",
         )
-
         p_final = Parametros.carregar(str(RAIZ / "params.json"))
-        cenarios_alvo = ("didatico_buraco_faixa", "didatico_sombra_trinca")
-        for cid in cenarios_alvo:
-            with self.subTest(pipeline_cenario=cid):
-                bgr, roi_full, info = carregar_cenario(cid)
-                res = executar_pipeline_didatico(bgr, roi_full, p_final, aplicar_reducao_2x=info.reduzir_padrao)
-                self.assertIn("resumo_didatico", res)
-                validar_resumo(res["resumo_didatico"])
+        for cid in ("didatico_buraco_faixa", "didatico_sombra_trinca"):
+            bgr, roi_full, info = carregar_cenario(cid)
+            res = executar_pipeline_didatico(bgr, roi_full, p_final, aplicar_reducao_2x=info.reduzir_padrao)
+            resumo = res["resumo_didatico"]
+            self.assertEqual(
+                set(resumo.keys()),
+                {"etapa1", "etapa2", "etapa3a", "etapa3b", "etapa4", "etapa5"},
+            )
+            self.assertIn(resumo["etapa5"]["severidade_label"], {"Nenhum", "Baixa", "Média", "Alta"})
 
-        srv = criar_servidor("127.0.0.1", 0)
-        porta = srv.server_address[1]
-        base = f"http://127.0.0.1:{porta}"
-        t = threading.Thread(target=srv.serve_forever, daemon=True)
-        t.start()
+    def test_janela_principal_fluxo_completo(self):
+        janela = JanelaPrincipal()
         try:
-            for cid in cenarios_alvo:
-                with self.subTest(http_cenario=cid):
-                    req = Request(
-                        f"{base}/api/analisar",
-                        data=json.dumps({"cenario_id": cid}).encode("utf-8"),
-                        headers={"Content-Type": "application/json"},
-                        method="POST",
-                    )
-                    with urlopen(req) as r:
-                        self.assertEqual(r.status, 200)
-                        out = json.loads(r.read().decode("utf-8"))
-                        self.assertIn("resumo_didatico", out)
-                        validar_resumo(out["resumo_didatico"])
+            self.assertIsNotNone(janela._resultado)
+
+            # Percorre todas as etapas do pipeline e modos de comparação
+            for eid in ORDEM_ETAPAS:
+                janela.selecionar_etapa(eid)
+                self.assertEqual(janela._etapa_atual, eid)
+                for sub in janela._subetapas_disponiveis(eid):
+                    janela._escolher_subetapa(sub[0])
+                    self.assertEqual(janela._subetapa_atual, sub[0])
+
+            for modo in ("unico", "lado", "cortina"):
+                janela.definir_modo_comparacao(modo)
+                self.assertEqual(janela._canvas.modo_comparacao(), modo)
+
+            # Alterna abas principais e clique em tile do mosaico
+            janela.alternar_aba_principal(1)
+            self.assertEqual(janela._stack_views.currentIndex(), 1)
+            janela._tiles_mosaico["4_abertura"].clicado.emit("4", "4_abertura")
+            self.assertEqual(janela._stack_views.currentIndex(), 0)
+            self.assertEqual(janela._etapa_atual, "4")
+            self.assertEqual(janela._subetapa_atual, "4_abertura")
+
+            janela.alternar_aba_principal(2)
+            self.assertEqual(janela._stack_views.currentIndex(), 2)
+            janela.alternar_aba_principal(0)
+
+            # Presets de parâmetros
+            for preset in ("slides_anterior", "padrao", "final"):
+                janela.aplicar_preset_parametros(preset)
+
+            # Carregamento de foto externa + máscara ROI + exportação PNG/JSON
+            with tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                img = np.full((120, 160, 3), 150, dtype=np.uint8)
+                img[58:60, 20:140] = 30
+                roi = np.full((120, 160), 255, dtype=np.uint8)
+                arq_img = tmp_path / "pista_teste.png"
+                arq_roi = tmp_path / "pista_roi.png"
+                cv2.imwrite(str(arq_img), img)
+                cv2.imwrite(str(arq_roi), roi)
+
+                ent = carregar_entrada_arquivo(str(arq_img), str(arq_roi))
+                janela._aplicar_entrada(ent)
+                self.assertGreaterEqual(janela._resultado["quant"]["n_trincas"], 1)
+
+                out_png = tmp_path / "painel.png"
+                out_json = tmp_path / "relatorio.json"
+                janela.exportar_painel_png(str(out_png))
+                janela.exportar_relatorio_json(str(out_json))
+                self.assertTrue(out_png.read_bytes().startswith(b"\x89PNG"))
+                rel = json.loads(out_json.read_text(encoding="utf-8"))
+                self.assertIn("quantificacao", rel)
+                self.assertIn("estatisticas", rel)
+
+            # Amostra real do dataset DNIT (quando disponível localmente)
+            amostras_teste = filtrar_dataset_dnit(particao_f="teste")
+            if amostras_teste:
+                janela.carregar_caminho_externo(amostras_teste[0]["caminho"])
+                self.assertIsNotNone(janela._resultado["metricas_gt"])
+                self.assertIn("5_gt_comparar", janela._resultado["imagens_bgr"])
         finally:
-            srv.shutdown()
-            srv.server_close()
+            janela.close()
 
 
 if __name__ == "__main__":

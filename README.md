@@ -4,152 +4,148 @@ Projeto da disciplina **Processamento de Imagens (PI 2026.2 — UFRPE)**
 **Professor:** Lucas Fernando da Silva Cambuim  
 **Grupo:** Guilherme Henrique, Caio Santos Bispo e Gabriel Lima
 
-> Pipeline clássico **100% determinístico** implementado do zero em **Python + NumPy** usando exclusivamente **aritmética inteira** (sem ponto flutuante, sem FFT e sem redes neurais), rodando em ~45–52 ms por imagem em CPU comum e equipado com uma **interface web interativa** para inspeção etapa por etapa e validação dos requisitos do projeto.
+> Pipeline clássico **100% determinístico** implementado do zero em **Python + NumPy** com **aritmética exclusivamente inteira** (sem ponto flutuante, sem FFT e sem redes neurais), rodando em ~45 ms por imagem em CPU e acompanhado de **interface gráfica desktop nativa em Python (PyQt5)** para inspeção visual de todas as etapas.
 
 ---
 
-## Prévia da Interface Web
+## Interface Gráfica em Python
 
-A interface web permite ao professor e aos alunos testar imagens reais do DNIT ou fotos próprias, arrastar a cortina **Antes × Depois**, comparar o limiar variável com o Otsu global lado a lado e verificar diretamente cada requisito da disciplina.
+### Pipeline Passo a Passo (`Antes × Depois`, Diagnóstico e Inspetor de Pixel)
+![Interface Desktop — Etapa Final](docs/imagens/gui_etapa5_final.png)
 
-### Tela Principal — Analisador na Etapa Final (`Antes × Depois` + Diagnóstico)
-![Tela Principal do Analisador](docs/imagens/tela_analisador.png)
+### Visão Completa das Etapas (Mosaico Interativo)
+![Interface Desktop — Painel de Etapas](docs/imagens/gui_mosaico_etapas.png)
 
-### Comparação Lado a Lado — Método Adaptativo Local vs. Otsu Global (`Etapa 3A`)
-![Comparação Limiar Variável vs Otsu Global](docs/imagens/tela_otsu_vs_local.png)
-
-### Matriz de Requisitos do Projeto & Resultados Oficiais (`666` Imagens de Teste)
-![Matriz de Requisitos e Resultados nos 666 Testes](docs/imagens/tela_requisitos_resultados.png)
+### Comparação Lado a Lado — Limiar Variável vs. Otsu Global (`Etapa 3A`)
+![Interface Desktop — Limiar Variável vs Otsu](docs/imagens/gui_etapa3a_otsu.png)
 
 ---
 
-## Instalação Rápida (1 comando)
+## Tutorial de Execução
 
-O projeto possui um instalador automático em Python puro (`instalar.py`) com wrapper para Linux/macOS (`instalar.sh`). Ele explica no terminal o que está fazendo em cada passo:
+### 1. Requisitos e Dependências
+Requer **Python 3.10+**. Instale as dependências (`numpy`, `opencv-python` e `PyQt5`):
 
-1. **Etapa 1/5 — Verificar ambiente:** valida Python `>= 3.10` e integridade dos arquivos essenciais.
-2. **Etapa 2/5 — Criar ambiente virtual:** prepara `.venv/` isolado (sem poluir o sistema).
-3. **Etapa 3/5 — Instalar dependências:** instala `numpy` e `opencv-python` (`requirements.txt`).
-4. **Etapa 4/5 — Configurar dataset DNIT:** verifica `dataset/Dataset/v1/`; se ausente, baixa automaticamente o arquivo oficial da Mendeley Data (`~220 MB`), valida integridade e extrai os dois níveis de `.zip`.
-5. **Etapa 5/5 — Validar instalação:** testa as importações do núcleo e executa toda a suíte `unittest`.
-
-### Linux / macOS
 ```bash
-./instalar.sh          # instala tudo, baixa/extrai o dataset e roda os testes
-./instalar.sh --abrir  # instala tudo e já abre a interface web no navegador
+pip install -r requirements.txt
 ```
 
-### Windows / Multiplataforma
+*(Caso utilize o ambiente virtual local `.venv/`, substitua `python` por `.venv/bin/python` no Linux/macOS ou `.venv\Scripts\python.exe` no Windows.)*
+
+### 2. Abrir a Interface Gráfica Desktop (Recomendado)
 ```bash
-python instalar.py
-python instalar.py --abrir
+python scripts/interface_visual.py
+```
+Também é possível abrir diretamente uma foto ou pasta de amostra do dataset DNIT:
+```bash
+python scripts/interface_visual.py dataset/Dataset/v1/1092481_DF_251_251BDF0052_00028
+```
+* **Amostras inclusas:** funciona imediatamente mesmo sem o dataset completo (possui exemplos reais e cenários didáticos embutidos, além de botão **Abrir Foto…**). Se `dataset/Dataset/v1/` estiver presente, habilita o **Explorador DNIT** com comparação contra o gabarito humano (`RAW`, `LANE`, `CRACK`, `POTHOLE`).
+* **Atalhos rápidos:** setas `←` / `→` ou teclas `1` a `6` alternam entre as etapas do pipeline; roda do mouse aplica zoom na imagem.
+
+### 3. Onde Baixar e Onde Colocar o Dataset DNIT (Opcional)
+A interface já funciona imediatamente sem baixar nada (traz exemplos reais e cenários didáticos embutidos, além de **Abrir Foto…**). Para explorar todas as **2.235 imagens reais** e reproduzir as métricas completas:
+
+1. Baixe a base pública **Cracks and Potholes in Road Images** no Mendeley Data:  
+   `https://data.mendeley.com/datasets/t576ydh9v8/4`
+2. Extraia o arquivo `.zip` interno (`Cracks-and-Potholes-in-Road-Images.zip`) de modo que as pastas das rodovias fiquem dentro de:
+   ```text
+   cavalo_mola/dataset/Dataset/v1/
+   └── 1092481_DF_251_251BDF0052_00028/
+       ├── 1092481_DF_251_251BDF0052_00028_RAW.jpg
+       ├── 1092481_DF_251_251BDF0052_00028_LANE.png
+       ├── 1092481_DF_251_251BDF0052_00028_CRACK.png
+       └── 1092481_DF_251_251BDF0052_00028_POTHOLE.png
+   ```
+   *(Alternativa: se o dataset estiver em outro lugar do disco, basta apontar pela variável de ambiente `CAVALO_DATASET=/caminho/para/v1` ou selecionar a pasta diretamente pelo botão **Explorar DNIT… → Localizar Pasta v1…** na interface.)*
+
+### 4. Processar uma Imagem via Linha de Comando
+```bash
+python scripts/processar_imagem.py dataset/Dataset/v1/1014586_RS_386_386RS124739_29855
+```
+Salva em `outputs/exemplos/` o painel com as etapas intermediárias (`.png`) e o relatório quantitativo (`.json`).
+
+### 5. Reproduzir os Experimentos Quantitativos (Base DNIT)
+Com o dataset colocado em `dataset/Dataset/v1/` (ou apontado via `CAVALO_DATASET`):
+```bash
+python scripts/avaliar.py --particao teste
 ```
 
-### Opções úteis do instalador
-* `--sem-dataset`: instala apenas o código e as dependências sem baixar os `~220 MB` do dataset DNIT (a interface web continua funcionando com cenários embutidos e upload de fotos).
-* `--zip-local CAMINHO`: usa um `.zip` do dataset baixado manualmente (aceita `t576ydh9v8-4.zip` ou `Cracks-and-Potholes-in-Road-Images.zip`).
-* `--recriar-venv` / `--forcar-pip` / `--pular-testes`: opções para reinstalação limpa ou validação rápida.
+### 6. Executar a Suíte de Testes Automatizados
+```bash
+python -m unittest discover -s tests -v
+```
 
 ---
 
-## Como Executar
+## Etapas do Pipeline Implementado
 
-Após rodar o instalador, utilize o Python do ambiente virtual (`.venv/bin/python` no Linux/macOS ou `.venv\Scripts\python.exe` no Windows):
+Todo o processamento clássico está em [`src/pavimento/nucleo.py`](src/pavimento/nucleo.py), com mapeamento teórico completo para os slides da disciplina em [`docs/REFERENCIAS.md`](docs/REFERENCIAS.md):
 
-### 1. Abrir a Interface Web Interativa (Recomendado para demonstração)
-```bash
-.venv/bin/python scripts/interface_visual.py
-```
-Opções disponíveis: `--porta 8080`, `--host 127.0.0.1`, `--sem-navegador`.
-
-### 2. Processar uma imagem via linha de comando (gera painel de etapas + JSON)
-```bash
-.venv/bin/python scripts/processar_imagem.py dataset/Dataset/v1/1014586_RS_386_386RS124739_29855
-```
-Gera em `outputs/exemplos/` o painel visual das etapas e o arquivo `.json` com a quantificação de cada defeito.
-
-### 3. Reproduzir a avaliação oficial nas 666 imagens inéditas de teste
-```bash
-.venv/bin/python scripts/avaliar.py --particao teste
-```
-
-### 4. Executar todos os testes automatizados
-```bash
-.venv/bin/python -m unittest discover -s tests -v
-```
+1. **Etapa 01 — Aquisição e Pré-processamento:** conversão RGB → Intensidade **HSI** ($I = \lfloor(R+G+B)/3\rfloor$), **redução espacial 2×** por média `2×2` (`1024×640 → 512×320`) e aplicação da máscara **ROI** da pista.
+2. **Etapa 02 — Filtragem Espacial $O(1)$:** somas acumuladas (imagem integral) calculam média local ($m_{xy}$) e desvios padrão locais ($s_{xy}$ para trincas, `raio=10`; $s_b$ para buracos, `raio_buraco=7`).
+3. **Etapa 3A — Segmentação de Trincas:** limiarização variável em dois níveis, $I(x,y) < m_{xy} - (a\cdot s_{xy} + b)$, seguida de **histerese por componentes 8-conexos** (preserva pontas conectadas a sementes fortes e descarta ruído isolado).
+4. **Etapa 3B — Segmentação de Buracos:** mapa de rugosidade ($s_b$) com limiar robusto extraído do histograma na ROI: $t_{\text{tex}} = \text{Mediana} + k\cdot\text{MAD}$ (`k = 7`).
+5. **Etapa 04 — Morfologia Matemática do Zero (NumPy):** erosão, dilatação, **abertura** (remove faixas pintadas no ramo de buracos), **fechamento**, **preenchimento condicional de buracos** e **fechamento direcional em 4 ângulos** (`—`, `|`, `/`, `\`) nas trincas.
+6. **Etapa 05 — Esqueleto, Regiões e Quantificação:** rotulagem 8-conexa, filtros geométricos de forma em buracos (área, circularidade $4\pi A/P^2$, razão de aspecto), **esqueletização de Zhang-Suen** (1 px) para medir comprimento, largura média e bifurcações, classificação DNIT (**longitudinal, transversal, diagonal, couro de jacaré**) e cálculo do **Índice de Dano (0–100)** + **Severidade**.
 
 ---
 
-## Pipeline Clássico e Requisitos da Disciplina
-
-Cada etapa do núcleo determinístico ([`src/pavimento/nucleo.py`](src/pavimento/nucleo.py)) está mapeada ao material das aulas em [`docs/REFERENCIAS.md`](docs/REFERENCIAS.md):
-
-1. **Aquisição e Pré-processamento:** conversão RGB → Intensidade do modelo **HSI** ($I = \lfloor(R+G+B)/3\rfloor$), **redução espacial 2×** por média de blocos `2×2` (`1024×640 → 512×320`) e recorte pela máscara de pista (**ROI**).
-2. **Filtragem Espacial $O(1)$:** filtro de caixa por somas acumuladas calculando média local ($m_{xy}$) e desvio padrão local ($s_{xy}$ / $s_b$) com duas janelas próprias (`raio = 10` para trincas, `raio_buraco = 7` para buracos).
-3. **Segmentação em dois ramos paralelos:**
-   * **3A — Trincas:** limiarização variável $I < m_{xy} - (a\cdot s_{xy} + b)$ em dois níveis (**sementes fortes** e **candidatos fracos**) com **histerese por componentes conexos** (8-adjacência) — evitando falhas de limiar global como Otsu em trechos com sombra.
-   * **3B — Buracos:** mapa de textura ($s_b$) com limiar robusto por histograma ($t_{\text{tex}} = \text{mediana} + k\cdot\text{MAD}$), resistente a faixas pintadas e outliers.
-4. **Morfologia Matemática implementada do zero em NumPy:** erosão, dilatação, **abertura** (remove faixas pintadas e riscos finos nos buracos), **fechamento**, **preenchimento condicional de buracos** (fecha miolos lisos com água/poeira) e **fechamento direcional em 4 ângulos** (`—`, `|`, `/`, `\`) nas trincas.
-5. **Extração de Características, Esqueleto e Quantificação:** rotulagem 8-conexa, filtros geométricos (área, perímetro morfológico, circularidade $4\pi A/P^2$, razão de aspecto), **esqueletização de Zhang-Suen** (comprimento, largura média = área/comprimento e bifurcações), classificação DNIT (**longitudinal, transversal, diagonal ou couro de jacaré**) e cálculo do **Índice de Dano (0–100)** + **Severidade** (`nenhum`, `baixa`, `media`, `alta`).
-
----
-
-## Estrutura do Projeto
+## Organização Modular
 
 ```text
-.
-├── instalar.py              # Instalador multiplataforma passo a passo (Python stdlib)
-├── instalar.sh              # Atalho executável para Linux/macOS
-├── params.json              # Parâmetros inteiros calibrados exclusivamente no treino
-├── requirements.txt         # Dependências mínimas (numpy, opencv-python)
+cavalo_mola/
+├── params.json                  # Parâmetros inteiros calibrados no conjunto de treino
+├── requirements.txt             # Dependências Python (numpy, opencv-python, PyQt5)
 ├── src/pavimento/
-│   ├── nucleo.py            # Núcleo determinístico completo (aritmética inteira)
-│   ├── parametros.py        # Definição e carga dos parâmetros inteiros
-│   ├── metricas.py          # Precisão, Revocação, F1, IoU e detecção por imagem
-│   ├── dataset.py           # Leitura do dataset DNIT e split determinístico por hash
-│   └── visualizacao.py      # Montagem de painéis comparativos e sobreposições
+│   ├── nucleo.py                # Núcleo determinístico completo (aritmética inteira)
+│   ├── parametros.py            # Definição e persistência dos parâmetros
+│   ├── metricas.py              # Precisão, Revocação, F1, IoU e detecção por imagem
+│   ├── dataset.py               # Leitura do dataset DNIT e split determinístico MD5
+│   └── visualizacao.py          # Sobreposições e montagem de painéis comparativos
 ├── interface/
-│   ├── servidor.py          # Servidor HTTP local em stdlib Python
-│   ├── pipeline_didatico.py # Instrumentação etapa a etapa mantendo paridade bit a bit
-│   ├── cenarios.py          # Cenários sintéticos determinísticos e exemplos reais
-│   └── static/              # Frontend offline (index.html, app.js, didatica.js, styles.css)
+│   ├── app.py                   # Inicialização desktop PyQt5 + saneamento de plugins Qt
+│   ├── janela_principal.py      # Janela principal (Pipeline, Mosaico e Resultados)
+│   ├── widgets.py               # Canvas Antes×Depois, Lupa 6×, Gauge e Histograma
+│   ├── dialogo_dnit.py          # Explorador nativo de amostras reais do DNIT
+│   ├── pipeline_didatico.py     # Instrumentação etapa a etapa fiel ao núcleo
+│   ├── dados.py                 # Gestão de entradas, presets e relatórios JSON
+│   ├── cenarios.py              # Exemplos reais embutidos e cenários sintéticos
+│   ├── conteudo.py              # Metadados concisos das etapas e tabelas
+│   └── tema.py                  # Folha de estilo QSS e paleta visual
 ├── scripts/
-│   ├── interface_visual.py  # Inicializa a interface web local
-│   ├── processar_imagem.py  # Gera painel de etapas e JSON para 1 imagem
-│   ├── avaliar.py           # Avaliação em treino/teste contra máscaras do dataset
-│   ├── ajustar.py           # Busca coordenada restrita ao conjunto de treino
-│   └── calibrar_severidade.py # Calibração ótima inteira dos limiares de severidade
-├── docs/
-│   ├── REFERENCIAS.md       # Mapeamento técnica → slides da disciplina e fontes
-│   └── imagens/             # Prints da interface web exibidos neste README
-└── tests/                   # Suíte unittest (paridade do núcleo, trincas, buracos, API)
+│   ├── interface_visual.py      # Ponto de entrada da interface gráfica desktop
+│   ├── processar_imagem.py      # Processamento de 1 imagem via CLI (PNG + JSON)
+│   ├── avaliar.py               # Avaliação oficial nas partições de treino/teste
+│   ├── ajustar.py               # Ajuste coordenado restrito ao conjunto de treino
+│   └── calibrar_severidade.py   # Calibração inteira dos limiares de severidade
+├── docs/REFERENCIAS.md          # Mapeamento técnica → slides da disciplina
+└── tests/                       # Testes automatizados do núcleo, ferramentas e GUI
 ```
 
 ---
 
-## Resultados Experimentais (`666` Imagens Inéditas de Teste)
+## Resultados Quantitativos (`666` Imagens Inéditas de Teste)
 
-As **1.451 imagens** selecionadas do dataset DNIT foram divididas deterministicamente por hash MD5 do nome em **785 imagens de treino/calibração** e **666 imagens inéditas de teste** (avaliadas ao final).
+As **1.451 imagens** avaliadas da base pública **Cracks and Potholes (DNIT)** foram separadas deterministicamente por hash MD5 em **785 imagens de treino** e **666 imagens inéditas de teste**:
 
-| Métrica (Conjunto de Teste — 666 imagens) | Inicial | Calibração (`r=4`) | Final (`r=10`) | Observação |
+| Métrica (Conjunto de Teste — 666 imagens) | Inicial | Calibração (`r=4`) | Final (`r=10`) | Destaque |
 | :--- | :---: | :---: | :---: | :--- |
-| Trincas — Detecção por imagem (F1) | 0,927 | 0,928 | **0,928** | Revocação de **100,0%** (0 falsos negativos) |
+| Trincas — Detecção por imagem (F1) | 0,927 | 0,928 | **0,928** | Revocação de **100,0%** (0 FN) |
 | Trincas — Pixel com tol. 2 px (F1) | 0,321 | 0,430 | **0,531** | **+66%** sobre o inicial |
 | Trincas — Pixel exato (F1 / IoU) | 0,200 / 0,111 | 0,234 / 0,132 | **0,326 / 0,194** | **+63%** em F1 exato |
-| Comprimento de trincas (Spearman) | 0,554 | 0,683 | **0,712** | Forte ordenação relativa entre vias |
-| Buracos — Detecção por imagem (F1) | 0,330 | 0,380 | **0,380** | Revocação subiu de 33,8% → 53,8% |
-| Buracos — Pixel (F1 / IoU) | 0,085 / 0,044 | 0,112 / 0,059 | **0,112 / 0,059** | Buracos = apenas 0,69% dos pixels |
-| Severidade — Acerto exato (4 classes) | 48,5% | 56,3% | **57,4%** | Muito acima do acaso (25%) |
+| Comprimento de trincas (Spearman) | 0,554 | 0,683 | **0,712** | Forte ordenação relativa |
+| Buracos — Detecção por imagem (F1) | 0,330 | 0,380 | **0,380** | Revocação 33,8% → 53,8% |
+| Buracos — Pixel (F1 / IoU) | 0,085 / 0,044 | 0,112 / 0,059 | **0,112 / 0,059** | Apenas 0,69% dos pixels |
+| Severidade — Acerto exato (4 classes) | 48,5% | 56,3% | **57,4%** | Acaso = 25% |
 | Severidade — Erro de até 1 nível | 90,1% | 94,1% | **93,2%** | Triagem consistente |
 
-### Análise Crítica
-* **Pontos fortes:** Núcleo determinístico em inteiros sem GPU, alta sensibilidade na detecção de trincas (F1 por imagem `0,928`), boa correlação na ordenação de comprimento (`0,712` Spearman) e triagem consistente de severidade (`93,2%` até 1 nível).
-* **Limitações conhecidas:** Em métodos locais 2D puramente baseados em brilho e textura, buracos (apenas `0,69%` dos pixels da pista, com polígonos manuais aproximados) sofrem confusão visual com remendos, manchas de óleo e sombras recortadas — resultando em IoU pixel baixo (`0,059`). O próximo salto natural seria integrar **CNNs** (contexto semântico) ou **visão estéreo** (profundidade física).
+* **Análise crítica:** o pipeline clássico determinístico obtém ótimo desempenho em trincas, ordenação de comprimento e severidade sem uso de GPU, mas evidencia a limitação natural de descritores locais 2D em buracos (`0,69%` dos pixels da pista, confundidos com remendos, manchas e sombras). Como evolução futura, recomenda-se integrar **CNNs** (contexto semântico) ou **visão estéreo** (profundidade 3D).
 
 ---
 
-## Dataset e Referências
+## Base de Dados e Referências
 
-* **Dataset:** PASSOS, B. T. et al. *Cracks and Potholes in Road Images.* Mendeley Data, v4, 2020. DOI: [`10.17632/t576ydh9v8.4`](https://data.mendeley.com/datasets/t576ydh9v8/4) (Licença CC BY 4.0 — 2.235 imagens reais de rodovias do ES, RS e DF cedidas pelo DNIT).
-* **Terminologia de defeitos:** Norma DNIT 005/2003-TER (*Defeitos nos pavimentos flexíveis e semirrígidos*).
-* **Mapeamento teórico detalhado:** veja [`docs/REFERENCIAS.md`](docs/REFERENCIAS.md).
+* **Dataset:** PASSOS, B. T. et al. *Cracks and Potholes in Road Images.* Mendeley Data, v4, 2020. DOI: [`10.17632/t576ydh9v8.4`](https://data.mendeley.com/datasets/t576ydh9v8/4) (CC BY 4.0 — 2.235 imagens reais cedidas pelo DNIT).
+* **Norma técnica:** DNIT 005/2003-TER (*Defeitos nos pavimentos flexíveis e semirrígidos*).
+* **Fundamentação teórica:** [`docs/REFERENCIAS.md`](docs/REFERENCIAS.md).

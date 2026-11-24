@@ -62,8 +62,6 @@ import cv2
 import numpy as np
 import _comum
 import ajustar
-import ajustar_pixel
-import avaliar_hibrido
 import calibrar_severidade
 from _nota import nota
 from pavimento.dataset import particao
@@ -89,42 +87,6 @@ class FerramentasTest(unittest.TestCase):
                 m[:] = 255
             self.assertTrue(cv2.imwrite(str(pasta / f"{nome}_{classe}.png"), m))
         return pasta
-
-    def test_hibrido_dataset_ausente_aborta_sem_relatorio_ou_pool(self):
-        with patch.dict(os.environ, {"CAVALO_DATASET": str(self.raiz / "ausente")}), \
-                patch.object(_caminho, "SAIDAS", str(self.raiz)), \
-                patch.object(sys, "argv", ["avaliar_hibrido.py"]), \
-                patch.object(sys, "stderr", new_callable=io.StringIO) as stderr, \
-                patch.object(avaliar_hibrido, "Pool") as pool, \
-                patch.object(avaliar_hibrido.json, "dump") as gravar:
-            with self.assertRaises(SystemExit) as exc:
-                avaliar_hibrido.main()
-            self.assertNotEqual(exc.exception.code, 0)
-            self.assertRegex(stderr.getvalue(), "Dataset.*CAVALO_DATASET")
-            pool.assert_not_called()
-            pool.return_value.__enter__.return_value.map.assert_not_called()
-            gravar.assert_not_called()
-            self.assertFalse((self.raiz / "avaliacao_hibrido.json").exists())
-
-    def test_hibrido_dataset_vazio_aborta_sem_relatorio_ou_pool(self):
-        dataset = self.raiz / "vazio"
-        dataset.mkdir()
-        with patch.dict(os.environ, {"CAVALO_DATASET": str(dataset)}), \
-                patch.object(_caminho, "SAIDAS", str(self.raiz)), \
-                patch.object(sys, "argv", ["avaliar_hibrido.py"]), \
-                patch.object(sys, "stderr", new_callable=io.StringIO) as stderr, \
-                patch.object(avaliar_hibrido, "validar_amostras", wraps=_comum.validar_amostras) as validar, \
-                patch.object(avaliar_hibrido, "Pool") as pool, \
-                patch.object(avaliar_hibrido.json, "dump") as gravar:
-            with self.assertRaises(SystemExit) as exc:
-                avaliar_hibrido.main()
-            self.assertNotEqual(exc.exception.code, 0)
-            self.assertIn("Nenhuma amostra", stderr.getvalue())
-            validar.assert_called_once_with([])
-            pool.assert_not_called()
-            pool.return_value.__enter__.return_value.map.assert_not_called()
-            gravar.assert_not_called()
-            self.assertFalse((self.raiz / "avaliacao_hibrido.json").exists())
 
     def test_guarda_treino(self):
         teste = next(f"img{i}" for i in range(100) if particao(f"img{i}") == "teste")
@@ -349,51 +311,6 @@ class FerramentasTest(unittest.TestCase):
             pool.assert_not_called()
             parametros.assert_not_called()
 
-    def test_pixel_dataset_ausente_com_cache_nao_cria_pool(self):
-        nome = next(f"img{i}" for i in range(100) if particao(f"img{i}") == "treino")
-        _comum.preparar(self.amostra(nome=nome))
-        with patch.dict(os.environ, {"CAVALO_DATASET": str(self.raiz / "ausente")}), \
-                patch.object(sys, "argv", ["ajustar_pixel.py"]), \
-                patch.object(ajustar_pixel, "Pool") as pool, \
-                patch.object(ajustar_pixel, "carregar_classificador") as classificador:
-            with self.assertRaisesRegex(FileNotFoundError, "CAVALO_DATASET"):
-                ajustar_pixel.main()
-            pool.assert_not_called()
-            classificador.assert_not_called()
-        r = self.executar("ajustar_pixel.py", self.raiz / "ausente", cache=self.cache)
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn("CAVALO_DATASET", r.stderr)
-        self.assertNotIn("Traceback", r.stderr)
-
-    def test_pixel_preflight_com_cache_usa_dataset_atual(self):
-        nome = next(f"img{i}" for i in range(100) if particao(f"img{i}") == "treino")
-        pasta = self.amostra(nome=nome)
-        _comum.preparar(pasta)
-        ausente = pasta / f"{nome}_LANE.png"
-        ausente.unlink()
-        with patch.dict(os.environ, {"CAVALO_DATASET": str(pasta.parent)}), \
-                patch.object(_caminho, "DATASET", str(self.raiz / "antigo")), \
-                patch.object(sys, "argv", ["ajustar_pixel.py"]), \
-                patch.object(ajustar_pixel, "Pool") as pool, \
-                patch.object(ajustar_pixel.Parametros, "carregar") as parametros:
-            with self.assertRaisesRegex(ValueError, ausente.name):
-                ajustar_pixel.main()
-            pool.assert_not_called()
-            parametros.assert_not_called()
-
-    def test_pixel_initializer_recebe_pastas_validadas(self):
-        nome = next(f"img{i}" for i in range(100) if particao(f"img{i}") == "treino")
-        pasta = self.amostra(nome=nome)
-        with patch.object(_caminho, "DATASET", str(self.raiz / "antigo")), \
-                patch.object(ajustar_pixel, "carregar_classificador"), \
-                patch.object(ajustar_pixel.Parametros, "carregar"), \
-                patch.object(ajustar_pixel, "preparar", wraps=_comum.preparar) as preparar:
-            ajustar_pixel._init([pasta])
-            preparar.assert_called_once_with(pasta)
-        teste = next(f"img{i}" for i in range(100) if particao(f"img{i}") == "teste")
-        with self.assertRaisesRegex(ValueError, "Vazamento recusado"):
-            ajustar_pixel._init([self.raiz / teste])
-
     def test_nota_monotonica(self):
         r = {"trinca_tol": (5, 5, 5, 5), "buraco_px": (2, 8, 2, 8),
              "tem_trinca_pred": True, "tem_trinca_gt": True,
@@ -488,7 +405,7 @@ class FerramentasTest(unittest.TestCase):
                               env=env, cwd=RAIZ, capture_output=True, text=True, timeout=30)
 
     def test_falha_limpa_sem_dataset(self):
-        for script in ("ajustar.py", "avaliar.py", "diagnosticar.py", "calibrar_severidade.py", "ajustar_pixel.py"):
+        for script in ("ajustar.py", "avaliar.py", "diagnosticar.py", "calibrar_severidade.py"):
             with self.subTest(script=script):
                 r = self.executar(script, self.raiz / "ausente")
                 self.assertNotEqual(r.returncode, 0)
@@ -500,7 +417,7 @@ class FerramentasTest(unittest.TestCase):
         pasta = self.amostra(nome=nome)
         _comum.preparar(pasta)
         (pasta / f"{nome}_LANE.png").unlink()
-        for script in ("ajustar.py", "avaliar.py", "diagnosticar.py", "calibrar_severidade.py", "ajustar_pixel.py"):
+        for script in ("ajustar.py", "avaliar.py", "diagnosticar.py", "calibrar_severidade.py"):
             with self.subTest(script=script):
                 # Reproduz cache já existente sem escrever em outputs/cache.
                 if script == "avaliar.py":
@@ -508,7 +425,7 @@ class FerramentasTest(unittest.TestCase):
                     r = subprocess.run(args, cwd=RAIZ, env={**os.environ, "CAVALO_DATASET": str(pasta.parent),
                                         "PYTHONDONTWRITEBYTECODE": "1"}, capture_output=True, text=True, timeout=30)
                 else:
-                    r = self.executar(script, pasta.parent, cache=self.cache if script == "ajustar_pixel.py" else None)
+                    r = self.executar(script, pasta.parent)
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn(f"{nome}_LANE.png", r.stderr)
                 self.assertNotIn("Traceback", r.stderr)
